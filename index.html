@@ -1,46 +1,46 @@
 <!DOCTYPE html>
 <html lang="ar">
 <head>
-    <title>Puff VR - Tunnel Ride</title>
+    <title>Puff VR - Hand & Controller Support</title>
     <script src="https://aframe.io/releases/1.4.2/aframe.min.js"></script>
     <style>
         #ui { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 1000; 
                background: rgba(0,0,0,0.9); color: white; padding: 30px; border-radius: 20px; text-align: center; font-family: sans-serif; }
-        input { margin: 20px; padding: 10px; }
-        button { cursor: pointer; padding: 15px 30px; background: #ff00ff; color: white; border: none; border-radius: 10px; font-size: 18px; }
+        button { cursor: pointer; padding: 15px 30px; background: #ff00ff; color: white; border: none; border-radius: 10px; font-size: 18px; margin-top: 10px; }
+        input { background: white; color: black; padding: 10px; border-radius: 5px; }
     </style>
 </head>
 <body>
     <div id="ui">
-        <h1>Puff VR Tunnel Ride</h1>
-        <p>اختر فيديوهات Puff الـ 55 من جهازك</p>
+        <h1>Puff VR Ride</h1>
+        <p>ملاحظة: لاختيار 55 فيديو، اضغط مطولاً على الملفات في النظارة</p>
         <input type="file" id="fileInput" multiple accept="video/*">
         <br>
-        <button onclick="startRide()">ابدأ الرحلة داخل النفق</button>
+        <button onclick="startRide()">دخول النفق الآن</button>
     </div>
 
-    <a-scene id="mainScene" style="display: none">
+    <a-scene id="mainScene" style="display: none" renderer="antialias: true; colorManagement: true;">
         <a-assets id="videoAssets"></a-assets>
 
-        <a-sky color="#0a001a"></a-sky>
+        <a-sky color="#050010"></a-sky>
 
         <a-entity id="tunnelGroup">
-            <a-cylinder radius="25" height="1000" open-ended="true" side="double"
-                        material="wireframe: true; color: #ff00ff; opacity: 0.3"
-                        rotation="90 0 0" position="0 0 -450"></a-cylinder>
-            
+            <a-cylinder radius="30" height="2000" open-ended="true" side="double"
+                        material="wireframe: true; color: #4facfe; opacity: 0.2"
+                        rotation="90 0 0" position="0 0 -950"></a-cylinder>
             <a-entity id="screenContainer"></a-entity>
         </a-entity>
 
         <a-entity id="rig" position="0 1.6 0">
-            <a-entity camera look-controls>
-                <a-cursor color="cyan"></a-cursor>
-                
-                <a-box id="exitBtn" position="2 1.5 -3" scale="0.5 0.2 0.1" color="#e74c3c" 
-                       onclick="location.reload()" class="raycastable">
-                    <a-text value="EXIT" align="center" position="0 0 0.6" width="3"></a-text>
-                </a-box>
-            </a-entity>
+            <a-entity camera look-controls></a-entity>
+            
+            <a-entity laser-controls="hand: left" raycaster="objects: .clickable; far: 10"></a-entity>
+            <a-entity laser-controls="hand: right" raycaster="objects: .clickable; far: 10"></a-entity>
+            
+            <a-box id="exitBtn" class="clickable" position="1 0.5 -1.5" scale="0.3 0.15 0.1" color="#ff4b2b" 
+                   onclick="location.reload()">
+                <a-text value="EXIT" align="center" position="0 0 0.6" width="3"></a-text>
+            </a-box>
         </a-entity>
     </a-scene>
 
@@ -48,74 +48,65 @@
         const fileInput = document.getElementById('fileInput');
         const container = document.getElementById('screenContainer');
         const assets = document.getElementById('videoAssets');
-        let rideStarted = false;
+        let rideSpeed = 0.08; // سرعة الحركة
 
         function startRide() {
             const files = Array.from(fileInput.files);
-            if (files.length === 0) return alert("الرجاء اختيار الملفات أولاً!");
+            if (files.length === 0) return alert("اختر الفيديوهات أولاً!");
 
             document.getElementById('ui').style.display = 'none';
             document.getElementById('mainScene').style.display = 'block';
 
             files.forEach((file, i) => {
                 const url = URL.createObjectURL(file);
-                
-                // إنشاء أصل الفيديو
                 const v = document.createElement('video');
                 v.id = `vid${i}`;
                 v.src = url;
                 v.loop = true;
                 v.crossOrigin = "anonymous";
-                v.setAttribute('playsinline', '');
                 assets.appendChild(v);
 
-                // إنشاء شاشة العرض
                 const screen = document.createElement('a-video');
                 screen.setAttribute('src', `#vid${i}`);
-                screen.setAttribute('width', '16'); // حجم كبير
+                screen.setAttribute('width', '16');
                 screen.setAttribute('height', '9');
                 
-                // توزيع حلزوني واسع جداً
-                const angle = i * 0.8;
-                const radius = 18;
+                // توزيع حلزوني واسع
+                const angle = i * 0.7;
+                const radius = 20;
                 const x = Math.cos(angle) * radius;
                 const y = Math.sin(angle) * radius + 5;
-                const z = -i * 25; // مسافة كبيرة بين كل فيديو لضمان الأداء
+                const z = -i * 30; 
 
                 screen.setAttribute('position', `${x} ${y} ${z}`);
                 screen.setAttribute('rotation', `0 ${-angle * 57.3 + 90} 0`);
                 container.appendChild(screen);
             });
 
-            rideStarted = true;
             document.querySelector('a-scene').enterVR();
-            animateRide();
+            animate();
         }
 
-        // تحريك الكاميرا للأمام داخل النفق
-        function animateRide() {
-            if (!rideStarted) return;
+        function animate() {
             const rig = document.getElementById('rig');
             let pos = rig.getAttribute('position');
-            pos.z -= 0.05; // سرعة الحركة للأمام
+            pos.z -= rideSpeed; 
             rig.setAttribute('position', pos);
 
-            // منطق ذكي: تشغيل الفيديو القريب فقط وإطفاء البعيد (لحماية المعالج)
+            // إدارة ذكية للفيديو والصوت (تشغيل القريب فقط)
             document.querySelectorAll('a-video').forEach((screen) => {
                 const videoId = screen.getAttribute('src').replace('#', '');
                 const videoEl = document.getElementById(videoId);
-                const distance = Math.abs(screen.getAttribute('position').z - pos.z);
+                const dist = Math.abs(screen.getAttribute('position').z - pos.z);
 
-                if (distance < 50) {
+                if (dist < 60) {
                     if (videoEl.paused) videoEl.play();
-                    // التحكم في الصوت حسب القرب
-                    videoEl.volume = Math.max(0, 1 - (distance / 50));
+                    videoEl.volume = Math.max(0, 1 - (dist / 60));
                 } else {
                     videoEl.pause();
                 }
             });
-
-            requestAnimationFrame(animateRide);
+            requestAnimationFrame(animate);
         }
     </script>
 </body>
