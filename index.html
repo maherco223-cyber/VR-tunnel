@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="ar">
+  <head>
+    <title>مشغل النفق VR</title>
+    <script src="https://aframe.io/releases/1.4.2/aframe.min.js"></script>
+  </head>
+  <body>
+    
+    <a-scene>
+      <a-assets>
+        <video id="myVideo" 
+               src="https://vjs.zencdn.net/v/oceans.mp4" 
+               crossorigin="anonymous" 
+               loop="true" 
+               webkit-playsinline>
+        </video>
+      </a-assets>
+
+      <a-videosphere src="#myVideo" rotation="0 -90 0"></a-videosphere>
+
+      <a-entity geometry="primitive: cylinder; radius: 12; height: 100; openEnded: true; side: double"
+                material="wireframe: true; color: #00ff00; opacity: 0.2"
+                rotation="90 0 0"
+                position="0 0 -40">
+      </a-entity>
+
+      <a-entity camera look-controls position="0 1.6 0">
+        <a-cursor color="cyan"></a-cursor>
+      </a-entity>
+
+      <a-box position="-1 0.5 -3" scale="0.8 0.5 0.1" color="#2ecc71" 
+             onclick="document.querySelector('#myVideo').play()">
+        <a-text value="PLAY" align="center" position="0 0 0.6" width="4"></a-text>
+      </a-box>
+
+      <a-box position="1 0.5 -3" scale="0.8 0.5 0.1" color="#e74c3c" 
+             onclick="document.querySelector('#myVideo').pause()">
+        <a-text value="STOP" align="center" position="0 0 0.6" width="4"></a-text>
+      </a-box>
+
+    </a-scene>
+  </body>
+</html>
