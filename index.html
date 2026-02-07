@@ -1,113 +1,191 @@
 <!DOCTYPE html>
-<html lang="ar">
+<html lang="en">
 <head>
-    <title>Puff VR - Hand & Controller Support</title>
-    <script src="https://aframe.io/releases/1.4.2/aframe.min.js"></script>
-    <style>
-        #ui { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 1000; 
-               background: rgba(0,0,0,0.9); color: white; padding: 30px; border-radius: 20px; text-align: center; font-family: sans-serif; }
-        button { cursor: pointer; padding: 15px 30px; background: #ff00ff; color: white; border: none; border-radius: 10px; font-size: 18px; margin-top: 10px; }
-        input { background: white; color: black; padding: 10px; border-radius: 5px; }
-    </style>
+  <meta charset="UTF-8">
+  <title>Puff VR Tunnel</title>
+  <script src="https://aframe.io/releases/1.4.2/aframe.min.js"></script>
+  <style>
+    body { margin:0; overflow:hidden; font-family:sans-serif; }
+    #ui {
+      position:absolute; inset:0;
+      background:rgba(0,0,0,0.9);
+      color:white;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      z-index:999;
+    }
+    .panel {
+      text-align:center;
+      background:#000;
+      padding:30px;
+      border-radius:20px;
+    }
+    button {
+      padding:15px 30px;
+      font-size:18px;
+      border:none;
+      border-radius:12px;
+      cursor:pointer;
+      background:#ff00ff;
+      color:white;
+    }
+    input { margin-top:10px; }
+  </style>
 </head>
+
 <body>
-    <div id="ui">
-        <h1>Puff VR Ride</h1>
-        <p>ملاحظة: لاختيار 55 فيديو، اضغط مطولاً على الملفات في النظارة</p>
-        <input type="file" id="fileInput" multiple accept="video/*">
-        <br>
-        <button onclick="startRide()">دخول النفق الآن</button>
-    </div>
 
-    <a-scene id="mainScene" style="display: none" renderer="antialias: true; colorManagement: true;">
-        <a-assets id="videoAssets"></a-assets>
+<!-- UI -->
+<div id="ui">
+  <div class="panel">
+    <h1>Puff VR Ride</h1>
+    <p>On Quest: <b>long-press</b> to select multiple videos</p>
+    <input type="file" id="fileInput" multiple accept="video/*"><br><br>
+    <button onclick="startRide()">ENTER VR</button>
+  </div>
+</div>
 
-        <a-sky color="#050010"></a-sky>
+<!-- SCENE -->
+<a-scene id="scene" style="display:none" renderer="antialias:true">
+  <a-assets id="assets"></a-assets>
 
-        <a-entity id="tunnelGroup">
-            <a-cylinder radius="30" height="2000" open-ended="true" side="double"
-                        material="wireframe: true; color: #4facfe; opacity: 0.2"
-                        rotation="90 0 0" position="0 0 -950"></a-cylinder>
-            <a-entity id="screenContainer"></a-entity>
-        </a-entity>
+  <a-sky color="#030014"></a-sky>
 
-        <a-entity id="rig" position="0 1.6 0">
-            <a-entity camera look-controls></a-entity>
-            
-            <a-entity laser-controls="hand: left" raycaster="objects: .clickable; far: 10"></a-entity>
-            <a-entity laser-controls="hand: right" raycaster="objects: .clickable; far: 10"></a-entity>
-            
-            <a-box id="exitBtn" class="clickable" position="1 0.5 -1.5" scale="0.3 0.15 0.1" color="#ff4b2b" 
-                   onclick="location.reload()">
-                <a-text value="EXIT" align="center" position="0 0 0.6" width="3"></a-text>
-            </a-box>
-        </a-entity>
-    </a-scene>
+  <!-- Tunnel Group -->
+  <a-entity id="tunnelGroup">
+    <a-cylinder
+      radius="30"
+      height="2000"
+      open-ended="true"
+      rotation="90 0 0"
+      position="0 0 -1000"
+      material="side:double; color:#4facfe; opacity:0.15">
+    </a-cylinder>
 
-    <script>
-        const fileInput = document.getElementById('fileInput');
-        const container = document.getElementById('screenContainer');
-        const assets = document.getElementById('videoAssets');
-        let rideSpeed = 0.08; // سرعة الحركة
+    <a-entity id="screens"></a-entity>
+  </a-entity>
 
-        function startRide() {
-            const files = Array.from(fileInput.files);
-            if (files.length === 0) return alert("اختر الفيديوهات أولاً!");
+  <!-- Player (STATIC) -->
+  <a-entity id="rig" position="0 1.6 0">
+    <a-camera></a-camera>
 
-            document.getElementById('ui').style.display = 'none';
-            document.getElementById('mainScene').style.display = 'block';
+    <!-- Controllers -->
+    <a-entity laser-controls="hand:left"></a-entity>
+    <a-entity laser-controls="hand:right"></a-entity>
 
-            files.forEach((file, i) => {
-                const url = URL.createObjectURL(file);
-                const v = document.createElement('video');
-                v.id = `vid${i}`;
-                v.src = url;
-                v.loop = true;
-                v.crossOrigin = "anonymous";
-                assets.appendChild(v);
+    <!-- Exit Button -->
+    <a-box id="exitBtn"
+      position="0 -0.3 -0.8"
+      scale="0.25 0.12 0.05"
+      color="#ff3333">
+      <a-text value="EXIT" align="center" position="0 0 0.6"></a-text>
+    </a-box>
+  </a-entity>
+</a-scene>
 
-                const screen = document.createElement('a-video');
-                screen.setAttribute('src', `#vid${i}`);
-                screen.setAttribute('width', '16');
-                screen.setAttribute('height', '9');
-                
-                // توزيع حلزوني واسع
-                const angle = i * 0.7;
-                const radius = 20;
-                const x = Math.cos(angle) * radius;
-                const y = Math.sin(angle) * radius + 5;
-                const z = -i * 30; 
+<script>
+const ui = document.getElementById('ui');
+const scene = document.getElementById('scene');
+const assets = document.getElementById('assets');
+const screens = document.getElementById('screens');
+const tunnel = document.getElementById('tunnelGroup');
+const fileInput = document.getElementById('fileInput');
 
-                screen.setAttribute('position', `${x} ${y} ${z}`);
-                screen.setAttribute('rotation', `0 ${-angle * 57.3 + 90} 0`);
-                container.appendChild(screen);
-            });
+let speed = 0.8;
+let paused = false;
 
-            document.querySelector('a-scene').enterVR();
-            animate();
-        }
+/* EXIT VR SAFELY */
+document.getElementById('exitBtn').addEventListener('click', () => {
+  if (scene.is('vr-mode')) {
+    scene.exitVR();
+    setTimeout(() => location.reload(), 500);
+  } else {
+    location.reload();
+  }
+});
 
-        function animate() {
-            const rig = document.getElementById('rig');
-            let pos = rig.getAttribute('position');
-            pos.z -= rideSpeed; 
-            rig.setAttribute('position', pos);
+/* START */
+function startRide() {
+  const files = [...fileInput.files];
+  if (!files.length) {
+    alert("Select at least one video");
+    return;
+  }
 
-            // إدارة ذكية للفيديو والصوت (تشغيل القريب فقط)
-            document.querySelectorAll('a-video').forEach((screen) => {
-                const videoId = screen.getAttribute('src').replace('#', '');
-                const videoEl = document.getElementById(videoId);
-                const dist = Math.abs(screen.getAttribute('position').z - pos.z);
+  ui.style.display = 'none';
+  scene.style.display = 'block';
 
-                if (dist < 60) {
-                    if (videoEl.paused) videoEl.play();
-                    videoEl.volume = Math.max(0, 1 - (dist / 60));
-                } else {
-                    videoEl.pause();
-                }
-            });
-            requestAnimationFrame(animate);
-        }
-    </script>
+  files.forEach((file, i) => {
+    const video = document.createElement('video');
+    video.id = `vid${i}`;
+    video.src = URL.createObjectURL(file);
+    video.loop = true;
+    video.preload = "metadata";
+    video.crossOrigin = "anonymous";
+    assets.appendChild(video);
+
+    const screen = document.createElement('a-video');
+    screen.setAttribute('src', `#vid${i}`);
+    screen.setAttribute('width', '14');
+    screen.setAttribute('height', '8');
+
+    const angle = i * 0.6;
+    const radius = 18;
+
+    const x = Math.cos(angle) * radius;
+    const y = Math.sin(angle) * radius + 5;
+    const z = -i * 30;
+
+    screen.setAttribute('position', `${x} ${y} ${z}`);
+    screen.setAttribute('rotation', `0 ${-angle * 57.3 + 90} 0`);
+
+    screens.appendChild(screen);
+  });
+
+  scene.enterVR();
+}
+
+/* REAL TUNNEL MOVEMENT */
+AFRAME.registerComponent('tunnel-move', {
+  tick() {
+    if (paused) return;
+
+    tunnel.object3D.position.z += speed;
+
+    if (tunnel.object3D.position.z > 1000) {
+      tunnel.object3D.position.z = 0;
+    }
+
+    document.querySelectorAll('a-video').forEach(screen => {
+      const v = document.getElementById(
+        screen.getAttribute('src').substring(1)
+      );
+
+      screen.object3D.position.z += speed;
+
+      const dist = Math.abs(screen.object3D.position.z);
+
+      if (dist < 60) {
+        if (v.paused) v.play();
+        v.volume = Math.max(0, 1 - dist / 60);
+      } else {
+        v.pause();
+      }
+
+      // recycle forward
+      if (screen.object3D.position.z > 20) {
+        screen.object3D.position.z -= 1600;
+      }
+    });
+
+    // subtle rotation for immersion
+    tunnel.object3D.rotation.z += 0.0004;
+  }
+});
+
+tunnel.setAttribute('tunnel-move', '');
+</script>
+
 </body>
 </html>
