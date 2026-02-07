@@ -1,37 +1,40 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>Puff VR Tunnel</title>
-  <script src="https://aframe.io/releases/1.4.2/aframe.min.js"></script>
-  <style>
-    body { margin:0; overflow:hidden; font-family:sans-serif; }
-    #ui {
-      position:absolute; inset:0;
-      background:rgba(0,0,0,0.9);
-      color:white;
-      display:flex;
-      align-items:center;
-      justify-content:center;
-      z-index:999;
-    }
-    .panel {
-      text-align:center;
-      background:#000;
-      padding:30px;
-      border-radius:20px;
-    }
-    button {
-      padding:15px 30px;
-      font-size:18px;
-      border:none;
-      border-radius:12px;
-      cursor:pointer;
-      background:#ff00ff;
-      color:white;
-    }
-    input { margin-top:10px; }
-  </style>
+<meta charset="UTF-8">
+<title>Puff VR Ultra – Folder Upload</title>
+<script src="https://aframe.io/releases/1.4.2/aframe.min.js"></script>
+
+<style>
+body { margin:0; overflow:hidden; font-family:sans-serif; }
+#ui {
+  position:absolute; inset:0;
+  background:rgba(0,0,0,0.9);
+  color:white;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  z-index:999;
+}
+.panel {
+  background:#000;
+  padding:30px;
+  border-radius:20px;
+  text-align:center;
+  max-width:400px;
+}
+button {
+  padding:15px 30px;
+  font-size:18px;
+  border:none;
+  border-radius:12px;
+  background:#ff00ff;
+  color:white;
+  cursor:pointer;
+}
+input { margin-top:10px; }
+.small { font-size:14px; opacity:0.8; }
+</style>
 </head>
 
 <body>
@@ -39,34 +42,46 @@
 <!-- UI -->
 <div id="ui">
   <div class="panel">
-    <h1>Puff VR Ride</h1>
-    <p>On Quest: <b>long-press</b> to select multiple videos</p>
-    <input type="file" id="fileInput" multiple accept="video/*"><br><br>
+    <h1>Puff VR Ultra</h1>
+
+    <p>
+      📁 Select a <b>folder</b> containing videos<br>
+      <span class="small">(Quest & Desktop supported)</span>
+    </p>
+
+    <input
+      type="file"
+      id="fileInput"
+      webkitdirectory
+      directory
+      accept="video/*">
+
+    <p id="count" class="small"></p>
+
+    <br>
     <button onclick="startRide()">ENTER VR</button>
+
+    <p class="small">
+      🖐️ Pinch = Pause<br>
+      🎮 Thumbstick = Speed<br>
+      ⬅ Meta button or EXIT to leave
+    </p>
   </div>
 </div>
 
 <!-- SCENE -->
-<a-scene id="scene" style="display:none" renderer="antialias:true">
+<a-scene id="scene" style="display:none">
   <a-assets id="assets"></a-assets>
 
-  <a-sky color="#030014"></a-sky>
+  <a-sky color="#020012"></a-sky>
 
-  <!-- Tunnel Group -->
-  <a-entity id="tunnelGroup">
-    <a-cylinder
-      radius="30"
-      height="2000"
-      open-ended="true"
-      rotation="90 0 0"
-      position="0 0 -1000"
-      material="side:double; color:#4facfe; opacity:0.15">
-    </a-cylinder>
+  <!-- INFINITE TUNNEL -->
+  <a-entity id="tunnel"></a-entity>
 
-    <a-entity id="screens"></a-entity>
-  </a-entity>
+  <!-- VIDEO SCREENS -->
+  <a-entity id="screens"></a-entity>
 
-  <!-- Player (STATIC) -->
+  <!-- PLAYER (STATIC) -->
   <a-entity id="rig" position="0 1.6 0">
     <a-camera></a-camera>
 
@@ -74,9 +89,12 @@
     <a-entity laser-controls="hand:left"></a-entity>
     <a-entity laser-controls="hand:right"></a-entity>
 
-    <!-- Exit Button -->
+    <!-- Hands -->
+    <a-entity id="rightHand" hand-tracking-controls="hand:right"></a-entity>
+
+    <!-- EXIT -->
     <a-box id="exitBtn"
-      position="0 -0.3 -0.8"
+      position="0 -0.35 -0.8"
       scale="0.25 0.12 0.05"
       color="#ff3333">
       <a-text value="EXIT" align="center" position="0 0 0.6"></a-text>
@@ -89,11 +107,20 @@ const ui = document.getElementById('ui');
 const scene = document.getElementById('scene');
 const assets = document.getElementById('assets');
 const screens = document.getElementById('screens');
-const tunnel = document.getElementById('tunnelGroup');
+const tunnel = document.getElementById('tunnel');
 const fileInput = document.getElementById('fileInput');
+const countEl = document.getElementById('count');
 
-let speed = 0.8;
+let speed = 0.6;
 let paused = false;
+let pinchLock = false;
+
+/* SHOW FILE COUNT */
+fileInput.onchange = () => {
+  const videos = [...fileInput.files]
+    .filter(f => f.type.startsWith('video/'));
+  countEl.textContent = `🎬 ${videos.length} videos detected`;
+};
 
 /* EXIT VR SAFELY */
 document.getElementById('exitBtn').addEventListener('click', () => {
@@ -105,87 +132,142 @@ document.getElementById('exitBtn').addEventListener('click', () => {
   }
 });
 
-/* START */
+/* START EXPERIENCE */
 function startRide() {
-  const files = [...fileInput.files];
+  const files = [...fileInput.files]
+    .filter(f => f.type.startsWith('video/'));
+
   if (!files.length) {
-    alert("Select at least one video");
+    alert("No videos found in folder");
     return;
   }
 
   ui.style.display = 'none';
   scene.style.display = 'block';
 
+  /* CREATE VIDEOS */
   files.forEach((file, i) => {
-    const video = document.createElement('video');
-    video.id = `vid${i}`;
-    video.src = URL.createObjectURL(file);
-    video.loop = true;
-    video.preload = "metadata";
-    video.crossOrigin = "anonymous";
-    assets.appendChild(video);
+    const v = document.createElement('video');
+    v.id = `vid${i}`;
+    v.src = URL.createObjectURL(file);
+    v.loop = true;
+    v.preload = "metadata";
+    v.crossOrigin = "anonymous";
+    assets.appendChild(v);
 
-    const screen = document.createElement('a-video');
-    screen.setAttribute('src', `#vid${i}`);
-    screen.setAttribute('width', '14');
-    screen.setAttribute('height', '8');
+    const s = document.createElement('a-video');
+    s.setAttribute('src', `#vid${i}`);
+    s.setAttribute('width', '14');
+    s.setAttribute('height', '8');
 
     const angle = i * 0.6;
-    const radius = 18;
+    const r = 18;
 
-    const x = Math.cos(angle) * radius;
-    const y = Math.sin(angle) * radius + 5;
-    const z = -i * 30;
+    s.object3D.position.set(
+      Math.cos(angle) * r,
+      Math.sin(angle) * r + 4,
+      -i * 30
+    );
+    s.object3D.rotation.y = -angle + Math.PI / 2;
 
-    screen.setAttribute('position', `${x} ${y} ${z}`);
-    screen.setAttribute('rotation', `0 ${-angle * 57.3 + 90} 0`);
-
-    screens.appendChild(screen);
+    screens.appendChild(s);
   });
 
+  buildTunnel();
   scene.enterVR();
 }
 
-/* REAL TUNNEL MOVEMENT */
-AFRAME.registerComponent('tunnel-move', {
+/* PROCEDURAL TUNNEL */
+function buildTunnel() {
+  for (let i = 0; i < 8; i++) {
+    const seg = document.createElement('a-cylinder');
+    seg.setAttribute('radius', '30');
+    seg.setAttribute('height', '250');
+    seg.setAttribute('open-ended', 'true');
+    seg.setAttribute('rotation', '90 0 0');
+    seg.setAttribute(
+      'material',
+      'side:double; color:#4facfe; opacity:0.15'
+    );
+    seg.object3D.position.z = -i * 250;
+    tunnel.appendChild(seg);
+  }
+}
+
+/* MAIN LOOP */
+AFRAME.registerComponent('ultra-move', {
   tick() {
     if (paused) return;
 
-    tunnel.object3D.position.z += speed;
+    /* MOVE TUNNEL SEGMENTS */
+    tunnel.childNodes.forEach(seg => {
+      seg.object3D.position.z += speed;
+      if (seg.object3D.position.z > 50)
+        seg.object3D.position.z -= 2000;
+    });
 
-    if (tunnel.object3D.position.z > 1000) {
-      tunnel.object3D.position.z = 0;
-    }
-
-    document.querySelectorAll('a-video').forEach(screen => {
+    /* MOVE VIDEOS */
+    document.querySelectorAll('a-video').forEach(s => {
       const v = document.getElementById(
-        screen.getAttribute('src').substring(1)
+        s.getAttribute('src').substring(1)
       );
 
-      screen.object3D.position.z += speed;
+      s.object3D.position.z += speed;
+      const d = Math.abs(s.object3D.position.z);
 
-      const dist = Math.abs(screen.object3D.position.z);
-
-      if (dist < 60) {
+      if (d < 60) {
         if (v.paused) v.play();
-        v.volume = Math.max(0, 1 - dist / 60);
+        v.volume = Math.max(0, 1 - d / 60);
       } else {
         v.pause();
       }
 
-      // recycle forward
-      if (screen.object3D.position.z > 20) {
-        screen.object3D.position.z -= 1600;
-      }
+      if (s.object3D.position.z > 20)
+        s.object3D.position.z -= 3000;
     });
 
-    // subtle rotation for immersion
-    tunnel.object3D.rotation.z += 0.0004;
+    tunnel.object3D.rotation.z += 0.0003;
+
+    handleThumbstick();
+    handlePinch();
   }
 });
+scene.setAttribute('ultra-move', '');
 
-tunnel.setAttribute('tunnel-move', '');
+/* THUMBSTICK SPEED CONTROL */
+function handleThumbstick() {
+  const gp = navigator.getGamepads?.()[0];
+  if (!gp) return;
+  const y = gp.axes[3];
+  if (y < -0.3) speed = Math.min(2.5, speed + 0.01);
+  if (y > 0.3) speed = Math.max(0, speed - 0.01);
+}
+
+/* HAND PINCH PAUSE */
+function handlePinch() {
+  const hand =
+    document.getElementById('rightHand')
+      .components['hand-tracking-controls'];
+
+  if (!hand || !hand.fingers) return;
+
+  const thumb = hand.fingers.thumb?.tipPosition;
+  const index = hand.fingers.index?.tipPosition;
+  if (!thumb || !index) return;
+
+  const dx = thumb.x - index.x;
+  const dy = thumb.y - index.y;
+  const dz = thumb.z - index.z;
+  const dist = Math.sqrt(dx*dx + dy*dy + dz*dz);
+
+  if (dist < 0.015 && !pinchLock) {
+    paused = !paused;
+    pinchLock = true;
+  }
+  if (dist > 0.03) pinchLock = false;
+}
 </script>
 
 </body>
 </html>
+
